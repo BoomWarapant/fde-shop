@@ -1,0 +1,15 @@
+.env
+.env.*
+.vercel
+__pycache__/
+*.pyc
+.venv/
+web/node_modules/
+web/dist/
+backups/
+
+.vercel
+.env*
+web/.env.local
+web/tsconfig.tsbuildinfo
+supabase/.temp/

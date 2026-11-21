@@ -1,0 +1,14 @@
+# Never upload secrets
+.env
+.env.*
+**/.env
+**/.env.*
+.venv/
+.git/
+**/__pycache__/
+web/node_modules/
+web/dist/
+tests/
+scripts/
+backups/
+supabase/.temp/

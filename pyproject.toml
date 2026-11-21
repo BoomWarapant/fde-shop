@@ -1,0 +1,16 @@
+[project]
+name = "fde-shop"
+version = "0.1.0"
+description = "FDE 101 Workshop 2.1: multi-vendor marketplace on Supabase + FastAPI + React"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.162.7",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shop_api"]
