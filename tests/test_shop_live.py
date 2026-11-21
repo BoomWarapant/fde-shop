@@ -145,6 +145,11 @@ class ShopLiveTest(unittest.TestCase):
             self.assertIn(self.sa.rest("GET", f"{table}?select=*&limit=1")[0], (401, 403), table)
             self.assertIn(http("GET", f"{URL}/rest/v1/{table}?select=*&limit=1", {"apikey": ANON})[0], (401, 403), table)
         self.assertIn(self.sa.rest("PATCH", f"products?product_id=eq.{bp}", {"price": 1})[0], (401, 403))
+        # sign-up tickets decide the role of a new account: only the server (service key) may write them
+        ticket = {"email": f"x{uuid.uuid4().hex[:6]}@fdeshop-demo.com", "role": "admin"}
+        self.assertIn(self.b1.rest("POST", "signup_tickets", ticket)[0], (401, 403))
+        self.assertIn(http("POST", f"{URL}/rest/v1/signup_tickets", {"apikey": ANON}, ticket)[0], (401, 403))
+        self.assertIn(self.b1.rest("GET", "signup_tickets?select=*")[0], (401, 403))
         # Seller B's order is invisible to Seller A and to another buyer
         self.assertEqual(self.b1.api("PUT", f"/api/cart/{bp}", {"qty": 1})[0], 200)
         st, ob = self.b1.api("POST", "/api/checkout", {"shop_id": self.shop_b, **ADDR})
