@@ -7,6 +7,7 @@ import { Badge, Card, ErrorState, PageSkeleton } from "../components/ui";
 import { apiSend, errorText, useApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { baht, num } from "../lib/format";
+import { productPhotoUrl } from "../lib/productPhotos";
 import { couponText, ProductImage } from "./Catalog";
 
 interface RelatedProduct {
@@ -81,7 +82,7 @@ export function ProductPage() {
   return (
     <div className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
-        <ProductImage src={p.image_url} alt={p.name} className="aspect-square w-full rounded-lg border object-cover" />
+        <ProductImage src={productPhotoUrl(p)} alt={p.name} className="aspect-square w-full rounded-lg border object-cover" />
         <div className="space-y-4">
           <div>
             <div className="text-xs text-muted-foreground">
@@ -176,7 +177,7 @@ export function ProductPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {p.related.map((r) => (
               <Link key={r.product_id} to={`/products/${r.product_id}`} className="group flex flex-col rounded-lg border bg-card transition-colors hover:border-accent/60">
-                <ProductImage src={r.image_url} alt={r.name} />
+                <ProductImage src={productPhotoUrl(r)} alt={r.name} />
                 <div className="flex flex-1 flex-col gap-1 p-2.5">
                   <div className="line-clamp-2 text-xs font-medium group-hover:text-accent">{r.name}</div>
                   <div className="mt-auto text-sm font-semibold text-accent">{baht(r.price)}</div>

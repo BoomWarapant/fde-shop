@@ -7,6 +7,7 @@ import { Card, cx, ErrorState, PageHeader, Select } from "../components/ui";
 import { apiSend, errorText, useApi, useUrlState } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { baht, num } from "../lib/format";
+import { productPhotoUrl } from "../lib/productPhotos";
 
 export interface CatalogItem {
   product_id: number;
@@ -103,7 +104,7 @@ function ProductCard({
   return (
     <div className="group flex flex-col rounded-lg border bg-card transition-colors duration-150 hover:border-accent/60">
       <Link to={`/products/${p.product_id}`} className="relative block">
-        <ProductImage src={p.image_url} alt={p.name} />
+        <ProductImage src={productPhotoUrl(p)} alt={p.name} />
         {p.brand && (
           <span className="absolute top-2 left-2 rounded bg-card/90 px-1.5 py-0.5 text-[11px] font-medium shadow-xs">
             {p.brand}
@@ -271,7 +272,7 @@ export function CatalogPage() {
             <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-4">
               {c.products.slice(0, 4).map((p) => (
                 <Link key={p.product_id} to={`/products/${p.product_id}`} className="flex items-center gap-2 rounded-md p-1 hover:bg-muted">
-                  <ProductImage src={p.image_url} alt={p.name} className="size-12 shrink-0 rounded-md object-cover" />
+                  <ProductImage src={productPhotoUrl(p)} alt={p.name} className="size-12 shrink-0 rounded-md object-cover" />
                   <span className="min-w-0 text-xs">
                     <span className="line-clamp-2">{p.name}</span>
                     <b className="text-accent">{baht(p.price)}</b>

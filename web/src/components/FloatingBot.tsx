@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { apiSend, errorText } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { baht } from "../lib/format";
+import { productPhotoUrl } from "../lib/productPhotos";
 import { ProductImage } from "../pages/Catalog";
 import { BotText, useBot, type BotProduct } from "./BotContext";
 import { cx } from "./ui";
@@ -125,7 +126,7 @@ export function FloatingBot() {
                         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/15 text-[11px] font-bold text-primary">
                           {idx + 1}
                         </span>
-                        <ProductImage src={p.image_url} alt={p.name} className="size-11 shrink-0 rounded object-cover" />
+                        <ProductImage src={productPhotoUrl(p)} alt={p.name} className="size-11 shrink-0 rounded object-cover" />
                         <div className="min-w-0 flex-1">
                           <Link
                             to={`/products/${p.product_id}`}

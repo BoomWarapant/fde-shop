@@ -28,6 +28,7 @@ import { Badge, Card, cx } from "../components/ui";
 import { apiSend, errorText, useApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { baht, num } from "../lib/format";
+import { productPhotoUrl } from "../lib/productPhotos";
 import type { Priced } from "./Cart";
 import { couponText, ProductImage } from "./Catalog";
 
@@ -396,7 +397,7 @@ export function AssistantPage() {
                     return (
                       <div key={p.product_id} className="flex flex-col rounded-lg border bg-card transition-colors hover:border-primary/50">
                         <div className="relative">
-                          <ProductImage src={p.image_url} alt={p.name} className="aspect-[16/10] w-full rounded-t-lg object-cover" />
+                          <ProductImage src={productPhotoUrl(p)} alt={p.name} className="aspect-[16/10] w-full rounded-t-lg object-cover" />
                           <span className="absolute top-2 left-2 rounded-md bg-foreground/85 px-2 py-0.5 text-xs font-bold text-background">
                             #{idx + 1}
                           </span>
@@ -492,7 +493,7 @@ export function AssistantPage() {
                                 นำออก
                               </button>
                             </div>
-                            <ProductImage src={p.image_url} alt={p.name} className="mb-1.5 aspect-[16/10] w-full rounded object-cover" />
+                            <ProductImage src={productPhotoUrl(p)} alt={p.name} className="mb-1.5 aspect-[16/10] w-full rounded object-cover" />
                             <Link to={`/products/${p.product_id}`} className="line-clamp-2 font-semibold hover:text-accent">
                               {p.name}
                             </Link>
@@ -691,7 +692,7 @@ function SpotlightProduct({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <ProductImage src={p.image_url} alt={p.name} className="aspect-square w-full rounded-lg border object-cover" />
+        <ProductImage src={productPhotoUrl(p)} alt={p.name} className="aspect-square w-full rounded-lg border object-cover" />
         <div className="space-y-2.5">
           <div className="text-xs text-muted-foreground">
             {p.parent_category_th || p.parent_category} {p.category_th ? `› ${p.category_th}` : ""}
