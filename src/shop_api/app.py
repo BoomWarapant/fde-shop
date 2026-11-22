@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import supa
+from . import bot, smart_search, supa
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB_DIST = ROOT / "web" / "dist"
@@ -63,12 +63,159 @@ public = APIRouter(prefix="/api")
 
 
 @public.get("/catalog")
-def catalog(request: Request, q: str | None = Query(None, max_length=60), category_id: int | None = Query(None, ge=1),
-            shop_id: int | None = Query(None, ge=1), sort: Literal["new", "price_asc", "price_desc", "popular"] = "new",
-            page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100)):
-    out = supa.rpc(request, "catalog", {"p_q": q or None, "p_category_id": category_id, "p_shop_id": shop_id, "p_sort": sort,
-                                        "p_limit": page_size, "p_offset": (page - 1) * page_size}, anonymous=True)
-    return {**out, "page": page, "page_size": page_size}
+def catalog(
+    request: Request,
+    q: str | None = Query(None, max_length=120),
+    category_id: int | None = Query(None, ge=1),
+    shop_id: int | None = Query(None, ge=1),
+    brand: str | None = Query(None, max_length=60),
+    min_price: Decimal | None = Query(None, ge=0),
+    max_price: Decimal | None = Query(None, ge=0),
+    tags: str | None = Query(None, max_length=200),
+    in_stock: bool = Query(False),
+    exclude: str | None = Query(None, max_length=120),
+    smart: bool = Query(True),
+    sort: Literal["new", "price_asc", "price_desc", "popular", "unit_price_asc"] = "new",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=100),
+):
+    tag_list = [t.strip().lower() for t in (tags or "").split(",") if t.strip()]
+    excl_list = [e.strip() for e in (exclude or "").split(",") if e.strip()]
+    parsed_hints: list[str] = []
+    eff_q = q or None
+    eff_min = min_price
+    eff_max = max_price
+    eff_sort = sort
+    eff_terms: list[str] | None = None
+
+    if smart and q:
+        parsed = smart_search.parse_smart_query(q)
+        parsed_hints = parsed.parsed_hints
+        if eff_min is None and parsed.min_price is not None:
+            eff_min = parsed.min_price
+        if eff_max is None and parsed.max_price is not None:
+            eff_max = parsed.max_price
+        if parsed.inferred_tags:
+            tag_list = list(dict.fromkeys([*tag_list, *parsed.inferred_tags]))
+        if parsed.exclude_terms:
+            excl_list = list(dict.fromkeys([*excl_list, *parsed.exclude_terms]))
+        if sort == "new" and parsed.inferred_sort:
+            eff_sort = parsed.inferred_sort  # type: ignore[assignment]
+        if parsed.barcodes:
+            eff_q = None
+            eff_terms = parsed.barcodes
+        elif parsed.clean_query:
+            eff_q = parsed.clean_query
+            eff_terms = parsed.expanded_terms or None
+        else:
+            eff_q = None
+            eff_terms = None
+
+    out = supa.rpc(
+        request,
+        "catalog",
+        {
+            "p_q": eff_q,
+            "p_category_id": category_id,
+            "p_shop_id": shop_id,
+            "p_sort": eff_sort,
+            "p_limit": page_size,
+            "p_offset": (page - 1) * page_size,
+            "p_brand": brand or None,
+            "p_min_price": str(eff_min) if eff_min is not None else None,
+            "p_max_price": str(eff_max) if eff_max is not None else None,
+            "p_tags": tag_list or None,
+            "p_in_stock": in_stock,
+            "p_exclude": excl_list or None,
+            "p_terms": eff_terms,
+        },
+        anonymous=True,
+    )
+    return {
+        **out,
+        "page": page,
+        "page_size": page_size,
+        "parsed_hints": parsed_hints,
+        "tag_meta": smart_search.TAG_META,
+    }
+
+
+def _snapshot(request: Request) -> dict:
+    return bot.get_cached_snapshot(lambda: supa.rpc(request, "bot_catalog_snapshot", anonymous=True))
+
+
+@public.get("/catalog/suggest")
+def catalog_suggest(request: Request, q: str = Query("", max_length=120), limit: int = Query(8, ge=1, le=20)):
+    return smart_search.build_suggestions(_snapshot(request), q, limit=limit)
+
+
+@public.get("/bot/status")
+def bot_status(request: Request):
+    snap = _snapshot(request)
+    products = snap.get("products") or []
+    cats = [c for c in (snap.get("categories") or []) if not c.get("parent_id")]
+    shops = {p.get("shop_id") for p in products if p.get("shop_id")}
+    llm = bot.detect_llm_config()
+    return {
+        "name": "น้องเอฟดี (FDE Sales Concierge)",
+        "engine": f"hybrid-llm:{llm['model']}" if llm else "smart-fastpath",
+        "llm_enabled": llm is not None,
+        "stats": {
+            "products": len(products),
+            "categories": len(cats),
+            "shops": len(shops),
+            "coupons": len(snap.get("coupons") or []),
+        },
+        "tag_meta": smart_search.TAG_META,
+        "starter_prompts": [
+            "อาหารฮาลาล ไร้ผงชูรส ไม่เกิน 200",
+            "สว่านมากิต้า หรือ บ๊อช งบ 3500",
+            "หูฟังไร้สาย ราคาถูกสุด",
+            "อาหารแมว ขายดี มีอะไรบ้าง",
+            "มีคูปองส่วนลดอะไรบ้าง",
+        ],
+    }
+
+
+class BotHistoryMsg(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=500)
+
+
+class BotChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=400)
+    history: list[BotHistoryMsg] = Field(default_factory=list, max_length=8)
+    focus_product_ids: list[int] = Field(default_factory=list, max_length=24)
+    viewing_product_id: int | None = Field(default=None, ge=1)
+    dietary_tags: list[str] = Field(default_factory=list, max_length=8)
+
+
+@public.post("/bot/chat")
+def bot_chat(body: BotChatIn, request: Request):
+    """Conversational search & sales concierge. Works for guests; signed-in buyers also get live DB cart/quote actions."""
+    snap = _snapshot(request)
+    token = bearer(request)
+    buyer_ops = None
+    if token:
+        try:
+            acct = supa.rpc_raw("my_account", token)
+        except supa.DbError:
+            acct = None
+        if acct and acct.get("status") == "active" and acct.get("role") == "buyer":
+            buyer_ops = {
+                "cart_get": lambda: supa.rpc_raw("cart_get", token),
+                "cart_set": lambda pid, qty: supa.rpc_raw("cart_set", token, {"p_product_id": pid, "p_qty": qty}),
+                "checkout_quote": lambda sid, cpn: supa.rpc_raw("checkout_quote", token, {"p_shop_id": sid, "p_coupon": cpn}),
+            }
+    return bot.run_sales_bot_turn(
+        message=body.message,
+        snapshot=snap,
+        history=[h.model_dump() for h in body.history],
+        focus_product_ids=body.focus_product_ids,
+        viewing_product_id=body.viewing_product_id,
+        dietary_tags=body.dietary_tags,
+        buyer_ops=buyer_ops,
+    )
 
 
 @public.get("/products/{product_id}")
@@ -260,22 +407,46 @@ class ProductIn(BaseModel):
     low_stock_threshold: int = Field(default=5, ge=0, le=100000)
     is_active: bool = True
     initial_stock: int = Field(default=0, ge=0, le=100000)
+    brand: str | None = Field(default=None, max_length=60)
+    sku: str | None = Field(default=None, max_length=40)
+    barcode: str | None = Field(default=None, max_length=30)
+    unit: str = Field(default="ชิ้น", min_length=1, max_length=30)
+    pack_qty: int = Field(default=1, ge=1, le=10000)
+    tags: list[str] = Field(default_factory=list, max_length=12)
 
 
 def _product_body(body: ProductIn, product_id: int | None) -> dict:
-    return {"p_product_id": product_id, "p_name": body.name, "p_description": body.description, "p_category_id": body.category_id,
-            "p_price": str(body.price), "p_image_url": body.image_url or None, "p_low_stock_threshold": body.low_stock_threshold,
-            "p_is_active": body.is_active, "p_initial_stock": body.initial_stock}
+    return {
+        "p_product_id": product_id,
+        "p_name": body.name,
+        "p_description": body.description,
+        "p_category_id": body.category_id,
+        "p_price": str(body.price),
+        "p_image_url": body.image_url or None,
+        "p_low_stock_threshold": body.low_stock_threshold,
+        "p_is_active": body.is_active,
+        "p_initial_stock": body.initial_stock,
+        "p_brand": body.brand or None,
+        "p_sku": body.sku or None,
+        "p_barcode": body.barcode or None,
+        "p_unit": body.unit or "ชิ้น",
+        "p_pack_qty": body.pack_qty,
+        "p_tags": [t.strip().lower() for t in body.tags if t.strip()],
+    }
 
 
 @seller.post("/products", status_code=201)
 def product_create(body: ProductIn, request: Request):
-    return supa.rpc(request, "seller_product_save", _product_body(body, None))
+    out = supa.rpc(request, "seller_product_save", _product_body(body, None))
+    bot.clear_snapshot_cache()
+    return out
 
 
 @seller.put("/products/{product_id}")
 def product_update(product_id: int, body: ProductIn, request: Request):
-    return supa.rpc(request, "seller_product_save", _product_body(body, product_id))
+    out = supa.rpc(request, "seller_product_save", _product_body(body, product_id))
+    bot.clear_snapshot_cache()
+    return out
 
 
 class StockIn(BaseModel):
