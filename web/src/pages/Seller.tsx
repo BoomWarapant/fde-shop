@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
+import { TRAIT_CHIPS } from "../components/BotContext";
 import { DataTable } from "../components/DataTable";
 import { Badge, Card, CardHeader, cx, DefinitionList, ErrorState, Kpi, PageHeader, PageSkeleton, Tabs } from "../components/ui";
 import { apiSend, errorText, useApi, useUrlState } from "../lib/api";
@@ -47,19 +48,39 @@ export function SellerHomePage() {
 }
 
 // ---------------------------------------------------------------- products and stock
-interface SellerProduct { product_id: number; name: string; description: string | null; category_id: number | null; category: string | null; price: number;
-  image_url: string | null; stock_qty: number; low_stock_threshold: number; is_active: boolean; low: boolean; sold: number; revenue: number }
+interface SellerProduct {
+  product_id: number; name: string; description: string | null; category_id: number | null; category: string | null; price: number;
+  image_url: string | null; stock_qty: number; low_stock_threshold: number; is_active: boolean; low: boolean; sold: number; revenue: number;
+  brand?: string | null; sku?: string | null; barcode?: string | null; unit?: string | null; pack_qty?: number | null; tags?: string[];
+}
 interface Move { movement_id: number; qty_change: number; reason: string; note: string | null; created_at: string }
 
-function ProductForm({ p, categories, onDone }: { p?: SellerProduct; categories: { category_id: number; name: string }[]; onDone: () => void }) {
+function ProductForm({ p, categories, onDone }: { p?: SellerProduct; categories: { category_id: number; name: string; name_th?: string | null; parent_id?: number | null }[]; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>(p?.tags ?? []);
+  function toggleTag(id: string) {
+    setTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const body = { name: f.get("name"), description: f.get("description") || null, category_id: f.get("category_id") ? Number(f.get("category_id")) : null,
-      price: f.get("price"), image_url: f.get("image_url") || null, low_stock_threshold: Number(f.get("low_stock_threshold")), is_active: f.get("is_active") === "on",
-      initial_stock: p ? 0 : Number(f.get("initial_stock") || 0) };
+    const body = {
+      name: f.get("name"),
+      description: f.get("description") || null,
+      category_id: f.get("category_id") ? Number(f.get("category_id")) : null,
+      price: f.get("price"),
+      image_url: f.get("image_url") || null,
+      low_stock_threshold: Number(f.get("low_stock_threshold")),
+      is_active: f.get("is_active") === "on",
+      initial_stock: p ? 0 : Number(f.get("initial_stock") || 0),
+      brand: f.get("brand") || null,
+      sku: f.get("sku") || null,
+      barcode: f.get("barcode") || null,
+      unit: f.get("unit") || "ชิ้น",
+      pack_qty: Number(f.get("pack_qty") || 1),
+      tags,
+    };
     setBusy(true); setErr(null);
     try { await apiSend(p ? "PUT" : "POST", p ? `seller/products/${p.product_id}` : "seller/products", body); onDone(); } catch (x) { setErr(errorText(x)); } finally { setBusy(false); }
   }
@@ -67,11 +88,32 @@ function ProductForm({ p, categories, onDone }: { p?: SellerProduct; categories:
     <form onSubmit={submit} className="grid gap-3 p-4 sm:grid-cols-2">
       <label className={cx(label, "sm:col-span-2")}>Name<input name="name" required minLength={2} defaultValue={p?.name} className={input} /></label>
       <label className={label}>Price (THB)<input name="price" type="number" step="0.01" min="0.01" required defaultValue={p?.price} className={input} /></label>
-      <label className={label}>Category<select name="category_id" defaultValue={p?.category_id ?? ""} className={input}><option value="">—</option>{categories.map((c) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}</select></label>
+      <label className={label}>Category<select name="category_id" defaultValue={p?.category_id ?? ""} className={input}><option value="">—</option>{categories.map((c) => <option key={c.category_id} value={c.category_id}>{c.parent_id ? "↳ " : ""}{c.name_th ? `${c.name_th} (${c.name})` : c.name}</option>)}</select></label>
+      <label className={label}>Brand<input name="brand" defaultValue={p?.brand ?? ""} placeholder="e.g. Makita, ดอยคำ" className={input} /></label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className={label}>Unit<input name="unit" defaultValue={p?.unit ?? "ชิ้น"} placeholder="ชิ้น / แพ็ก 6" className={input} /></label>
+        <label className={label}>Pack Qty<input name="pack_qty" type="number" min="1" defaultValue={p?.pack_qty ?? 1} className={input} /></label>
+      </div>
+      <label className={label}>SKU (optional)<input name="sku" defaultValue={p?.sku ?? ""} className={input} /></label>
+      <label className={label}>Barcode (optional)<input name="barcode" defaultValue={p?.barcode ?? ""} className={input} /></label>
       {!p && <label className={label}>Opening stock<input name="initial_stock" type="number" min="0" defaultValue={0} className={input} /></label>}
       <label className={label}>Low-stock alert at<input name="low_stock_threshold" type="number" min="0" defaultValue={p?.low_stock_threshold ?? 5} className={input} /></label>
       <label className={cx(label, "sm:col-span-2")}>Image link (https://)<input name="image_url" type="url" defaultValue={p?.image_url ?? ""} className={input} /></label>
       <label className={cx(label, "sm:col-span-2")}>Description<textarea name="description" rows={2} defaultValue={p?.description ?? ""} className={input + " h-auto py-2"} /></label>
+      <div className="sm:col-span-2 space-y-1.5">
+        <span className={label}>Product traits / badges</span>
+        <div className="flex flex-wrap gap-1.5">
+          {TRAIT_CHIPS.map((t) => {
+            const on = tags.includes(t.id);
+            return (
+              <button key={t.id} type="button" onClick={() => toggleTag(t.id)}
+                className={cx("rounded-full border px-2.5 py-1 text-xs", on ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:border-primary/50")}>
+                {t.icon} {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={p?.is_active ?? true} />For sale</label>
       {err && <p role="alert" className="text-sm text-destructive sm:col-span-2">{err}</p>}
       <div className="sm:col-span-2"><button disabled={busy} className={cx(btn, "bg-primary text-primary-foreground")}>{busy && <Loader2 className="size-4 animate-spin" aria-hidden />}{p ? "Save product" : "Add product"}</button></div>

@@ -9,9 +9,9 @@ a thin FastAPI layer, a React front end.
 
 | Who | Can |
 |---|---|
-| Anyone | browse and search products, filter by category, sort, open a shop page, see the live campaign |
-| Buyer | register, cart grouped by shop, coupon, checkout (one order per shop), pay by bank-transfer slip, track the order timeline, mark as received, cancel unpaid orders, request a refund |
-| Seller | register with a shop; post and edit products; stock (restock / adjust, movement history, low-stock alert); promotions (shop coupons); check slips, ship with carrier + tracking, mark delivered; decide refunds; accounting (sales, discounts, 5 % platform fee, refunds, net payout by month and order); customers (Frequent 3+ / Repeat 2 / New 1 orders) |
+| Anyone | browse 12 main categories / 36 subcategories (~200+ products across 6 shops), use MarketBrain-style **Smart Search** (budget e.g. `"ไม่เกิน 200"`, exclusions `"-ทิพรส"`, Thai↔English synonyms, brand/price/trait facets), chat with **น้องเอฟดี (Sales Concierge)** at `/assistant` or via the floating concierge drawer |
+| Buyer | register, add to cart directly from cards or via chat (`"เอาเบอร์ 1 2 ชิ้น"`), compare products side-by-side, check coupons & free-shipping progress, checkout (one order per shop), pay by bank-transfer slip, track the order timeline, mark as received, cancel unpaid orders, request a refund |
+| Seller | register with a shop; post and edit products (with brand, SKU, barcode, unit/pack size, and trait badges); stock (restock / adjust, movement history, low-stock alert); promotions (shop coupons); check slips, ship with carrier + tracking, mark delivered; decide refunds; accounting (sales, discounts, 5 % platform fee, refunds, net payout by month and order); customers (Frequent 3+ / Repeat 2 / New 1 orders) |
 | Platform admin | overview (GMV, platform fees, top-selling shops), users (ban / unban with a reason), campaigns (banner, featured products, platform coupons paid by the platform) |
 
 ## Rules (all enforced in `supabase/migrations/*.sql`)
